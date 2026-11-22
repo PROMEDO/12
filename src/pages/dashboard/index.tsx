@@ -205,13 +205,15 @@ const DashboardShell: React.FC = () => {
       <div className="sb-nav-divider" />
 
       <div className="sb-footer-inline">
-        <DashboardSidebarInstallButton
-          restaurantName={mainRest.n}
-          branchName={activeRid !== mainRid ? rest.branchName || rest.n : undefined}
-          storageKeyId={activeRid}
-          showToast={showToast}
-          onAction={closeDrawer ? () => setDrawerOpen(false) : undefined}
-        />
+        {closeDrawer && (
+          <DashboardSidebarInstallButton
+            restaurantName={mainRest.n}
+            branchName={activeRid !== mainRid ? rest.branchName || rest.n : undefined}
+            storageKeyId={activeRid}
+            showToast={showToast}
+            onAction={() => setDrawerOpen(false)}
+          />
+        )}
 
         <button
           type="button"

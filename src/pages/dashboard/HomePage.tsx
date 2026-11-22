@@ -19,14 +19,12 @@ import {
 import { fetchDashboardTelegramStatusApi } from '../../utils/adminApi';
 import { DEFAULT_MEDIA_ASSETS } from '../../utils/businessDefaults';
 import { Ml7Text } from '../../components/Ml7Text';
-import { DashboardPWAInstallBanner } from '../../components/DashboardPWAInstallPrompt';
 import { dashCardMotion, dashHeroMotion, dashRowMotion, dashSectionMotion } from '../../utils/dashboardMotion';
 import { SettingsSectionTab, useDashboard } from './DashboardContext';
 
 export const HomePage: React.FC = () => {
   const prefersReducedMotion = useReducedMotion();
   const {
-    mainRest,
     rest,
     resolvedPlan,
     terms,
@@ -42,7 +40,6 @@ export const HomePage: React.FC = () => {
     handleSeedStoreCatalog,
     activeRid,
     mainRid,
-    showToast,
   } = useDashboard();
 
   const defaultMedia =
@@ -267,14 +264,6 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
       </motion.div>
-
-      <DashboardPWAInstallBanner
-        key={activeRid}
-        restaurantName={mainRest.n}
-        branchName={activeRid !== mainRid ? rest.branchName || rest.n : undefined}
-        storageKeyId={activeRid}
-        showToast={showToast}
-      />
 
       {/* Quick Action Shortcuts */}
       <section className="mp-home-shortcuts-section" dir="rtl" aria-label="اختصارات سريعة">
