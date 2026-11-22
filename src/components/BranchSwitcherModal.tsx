@@ -3,18 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Check, ChevronLeft, Copy, GitBranch, Sparkles, X } from 'lucide-react';
-import { Category, MenuItem, Restaurant } from '../types';
-import {
-  OwnedMenuSummary,
-  copyTextReliable,
-  getCollection,
-  getSlugForRestaurantId,
-} from '../utils/storage';
-import { getDashboardTabPath } from '../utils/router';
+import { ChevronLeft, GitBranch, X } from 'lucide-react';
+import { Restaurant } from '../types';
+import { OwnedMenuSummary } from '../utils/storage';
 import { DASH_EASE, dashModalMotion } from '../utils/dashboardMotion';
 
 interface BranchSwitcherModalProps {
@@ -34,20 +28,13 @@ interface BranchSwitcherModalProps {
 
 export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
   isOpen,
-  isStartupPrompt = false,
-  mainRid,
-  activeRid,
   mainRest,
+  activeRid,
   branchesList,
-  ownedMenus = [],
-  isStore,
   onSelectBranch,
-  onSelectMenu,
   onClose,
-  showToast,
 }) => {
   const prefersReducedMotion = useReducedMotion();
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -60,41 +47,10 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
 
   if (typeof document === 'undefined') return null;
 
-  const allCats = getCollection<Category>('cats');
-  const allItems = getCollection<MenuItem>('items');
-
   const allBranches: Array<{ rest: Restaurant; isMain: boolean }> = [
     { rest: mainRest, isMain: true },
     ...branchesList.map((b) => ({ rest: b, isMain: false })),
   ];
-  const familyIds = new Set(allBranches.map((entry) => entry.rest.id));
-
-  const handleCopyDashboardLink = async (
-    e: React.MouseEvent,
-    targetRid: string,
-    label: string,
-    fallbackSlug?: string
-  ) => {
-    e.stopPropagation();
-    const targetSlug = getSlugForRestaurantId(targetRid) || fallbackSlug;
-    const isInCurrentFamily = familyIds.has(targetRid);
-    const path = getDashboardTabPath(
-      'home',
-      isInCurrentFamily && targetRid !== mainRid ? targetRid : undefined,
-      targetSlug
-    );
-    const fullUrl = `${window.location.origin}${path}`;
-    const ok = await copyTextReliable(fullUrl);
-    if (ok) {
-      setCopiedId(targetRid);
-      showToast(`تم نسخ رابط لوحة تحكم "${label}" ✓`);
-      window.setTimeout(() => {
-        setCopiedId((cur) => (cur === targetRid ? null : cur));
-      }, 2000);
-    } else {
-      showToast('تعذر نسخ الرابط، يرجى النسخ يدوياً');
-    }
-  };
 
   return createPortal(
     <AnimatePresence>
@@ -127,8 +83,8 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
             onClick={(e) => e.stopPropagation()}
             {...dashModalMotion(prefersReducedMotion)}
             style={{
-              width: 'min(480px, 100%)',
-              maxHeight: '86dvh',
+              width: 'min(420px, 100%)',
+              maxHeight: '84dvh',
               display: 'flex',
               flexDirection: 'column',
               borderRadius: '22px',
@@ -143,20 +99,20 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
             <div
               style={{
                 display: 'flex',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 justifyContent: 'space-between',
                 gap: '12px',
-                padding: '18px 18px 14px',
+                padding: '16px 18px',
                 borderBottom: '1px solid var(--line)',
                 background: 'color-mix(in srgb, var(--panel, var(--surface)) 72%, transparent)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
                 <div
                   style={{
-                    width: '42px',
-                    height: '42px',
-                    borderRadius: '13px',
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '11px',
                     background: 'color-mix(in srgb, var(--brand) 16%, transparent)',
                     border: '1px solid color-mix(in srgb, var(--brand) 32%, transparent)',
                     color: 'var(--brand-ink, var(--brand))',
@@ -165,21 +121,14 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
                     flexShrink: 0,
                   }}
                 >
-                  <GitBranch size={20} />
+                  <GitBranch size={18} />
                 </div>
-                <div style={{ minWidth: 0 }}>
-                  <h3
-                    id="mp-branch-modal-title"
-                    style={{ margin: 0, fontSize: '16.5px', fontWeight: 900, color: 'var(--ink)' }}
-                  >
-                    {isStartupPrompt ? 'اختر الفرع للتعديل' : 'تبديل الفرع النشط'}
-                  </h3>
-                  <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--muted)', lineHeight: 1.5 }}>
-                    {isStartupPrompt
-                      ? 'حدد الفرع الذي تريد فتح لوحة التحكم وإدارة إعداداته ومنتجاته الآن'
-                      : 'لكل فرع رابط لوحة تحكم مستقل تماماً — اختر الفرع للانتقال إليه'}
-                  </p>
-                </div>
+                <h3
+                  id="mp-branch-modal-title"
+                  style={{ margin: 0, fontSize: '18px', fontWeight: 900, color: 'var(--ink)' }}
+                >
+                  اختر الفرع
+                </h3>
               </div>
 
               <button
@@ -203,10 +152,10 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
               </button>
             </div>
 
-            {/* Branch List */}
+            {/* Branch Names Only */}
             <div
               style={{
-                padding: '14px 16px 16px',
+                padding: '16px',
                 overflowY: 'auto',
                 display: 'flex',
                 flexDirection: 'column',
@@ -215,26 +164,18 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
             >
               {allBranches.map(({ rest: b, isMain }) => {
                 const isActive = b.id === activeRid;
-                const branchLabel = isMain ? mainRest.n : b.branchName || b.n;
-                const catsCount = allCats.filter((c) => c.rid === b.id).length;
-                const itemsCount = allItems.filter((i) => i.rid === b.id).length;
-                const isCopied = copiedId === b.id;
+                const branchLabel = isMain
+                  ? mainRest.branchName?.trim() || mainRest.n
+                  : b.branchName?.trim() || b.n;
 
                 return (
-                  <div
+                  <button
                     key={b.id}
-                    role="button"
-                    tabIndex={0}
+                    type="button"
                     onClick={() => onSelectBranch(b.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onSelectBranch(b.id);
-                      }
-                    }}
                     style={{
                       width: '100%',
-                      padding: '13px 14px',
+                      padding: '15px 18px',
                       borderRadius: '15px',
                       border: isActive
                         ? '1.5px solid var(--brand)'
@@ -248,117 +189,27 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
                       justifyContent: 'space-between',
                       gap: '10px',
                       textAlign: 'start',
-                      transition: 'border-color 0.16s ease, background 0.16s ease, transform 0.16s ease',
+                      transition: 'border-color 0.16s ease, background 0.16s ease',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0, flex: 1 }}>
-                      <div
-                        style={{
-                          width: '38px',
-                          height: '38px',
-                          borderRadius: '11px',
-                          background: isActive
-                            ? 'var(--brand)'
-                            : 'color-mix(in srgb, var(--brand) 12%, transparent)',
-                          color: isActive ? '#ffffff' : 'var(--brand-ink, var(--brand))',
-                          display: 'grid',
-                          placeItems: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {isMain ? <Sparkles size={17} /> : <GitBranch size={17} />}
-                      </div>
+                    <span
+                      style={{
+                        fontSize: '16px',
+                        fontWeight: 900,
+                        color: 'var(--ink)',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {branchLabel}
+                    </span>
 
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                          <span
-                            style={{
-                              fontSize: '14px',
-                              fontWeight: 800,
-                              color: 'var(--ink)',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {branchLabel}
-                          </span>
-
-                          <span
-                            style={{
-                              fontSize: '10.5px',
-                              fontWeight: 800,
-                              padding: '2px 7px',
-                              borderRadius: '7px',
-                              background: isMain
-                                ? 'color-mix(in srgb, var(--brand) 15%, transparent)'
-                                : 'color-mix(in srgb, var(--line) 55%, transparent)',
-                              color: isMain ? 'var(--brand-ink, var(--brand))' : 'var(--muted)',
-                            }}
-                          >
-                            {isMain ? 'الرئيسي' : 'فرع'}
-                          </span>
-
-                          {isActive && (
-                            <span
-                              style={{
-                                fontSize: '10.5px',
-                                fontWeight: 800,
-                                padding: '2px 7px',
-                                borderRadius: '7px',
-                                background: 'rgba(16, 185, 129, 0.15)',
-                                color: '#10b981',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '3px',
-                              }}
-                            >
-                              <Check size={11} strokeWidth={3} />
-                              <span>الحالي</span>
-                            </span>
-                          )}
-                        </div>
-
-                        <div
-                          className="tabular-nums"
-                          style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '3px' }}
-                        >
-                          {catsCount} أقسام · {itemsCount} {isStore ? 'منتج' : 'صنف'}
-                          {b.slug ? ` · /${b.slug}/dashboard` : ''}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={(e) => void handleCopyDashboardLink(e, b.id, branchLabel, b.slug)}
-                        title="نسخ رابط لوحة تحكم هذا الفرع"
-                        aria-label={`نسخ رابط لوحة ${branchLabel}`}
-                        style={{
-                          height: '32px',
-                          padding: '0 9px',
-                          borderRadius: '9px',
-                          border: '1px solid var(--line)',
-                          background: isCopied
-                            ? 'rgba(16, 185, 129, 0.14)'
-                            : 'color-mix(in srgb, var(--surface) 82%, transparent)',
-                          color: isCopied ? '#10b981' : 'var(--muted)',
-                          fontSize: '11px',
-                          fontWeight: 700,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                        <span>{isCopied ? 'تم' : 'رابط اللوحة'}</span>
-                      </button>
-
-                      <ChevronLeft size={16} style={{ color: isActive ? 'var(--brand)' : 'var(--muted)' }} />
-                    </div>
-                  </div>
+                    <ChevronLeft
+                      size={17}
+                      style={{ color: isActive ? 'var(--brand)' : 'var(--muted)', flexShrink: 0 }}
+                    />
+                  </button>
                 );
               })}
             </div>

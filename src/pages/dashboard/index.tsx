@@ -5,7 +5,7 @@
 
 import React, { Suspense, lazy, useEffect } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { AlertTriangle, ChevronDown, Eye, GitBranch, Loader2, LogOut, MessageCircle, Save, Share2, Store, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, Eye, Loader2, LogOut, MessageCircle, Save, Share2, Store, X } from 'lucide-react';
 import { AppLogo } from '../../components/AppLogo';
 import { AjaxConfirmModal } from '../../components/AjaxConfirmModal';
 import { PauseVisibilityModal } from '../../components/PauseVisibilityModal';
@@ -157,48 +157,49 @@ const DashboardShell: React.FC = () => {
     (activeTab === 'qr' && resolvedPlan.perms.qrCode) ||
     (activeTab === 'menu' && isItemEditorOpen && Boolean(editingItemId));
 
-  const renderStoreSummaryCard = (compact?: boolean) => (
-    <div className={`mp-sb-store-card ${compact ? 'is-compact' : ''}`}>
-      <div className="mp-sb-store-row">
-        <Store size={14} className="mp-sb-store-ico" />
-        <span className="mp-sb-store-name" title={activeBranchDisplayName}>
-          {activeBranchDisplayName}
-        </span>
-      </div>
-      <div className="mp-sb-store-plan">{localizedPlanTitle}</div>
-    </div>
-  );
-
-  const renderBranchSwitcher = (_scope: 'desktop' | 'drawer') => {
-    if (branchesList.length === 0) return null;
-    const isMainBranch = activeRid === mainRid;
-    const activeBranchTitle = activeBranchDisplayName;
-
+  const renderStoreSummaryCard = (compact?: boolean, closeDrawer?: boolean) => {
+    const canSwitchBranches = branchesList.length > 0;
+    const triggerSwitch = () => {
+      if (!canSwitchBranches) return;
+      if (closeDrawer) setDrawerOpen(false);
+      openBranchSwitcherModal();
+    };
     return (
-      <div className="mp-sb-branch-card">
-        <div className="mp-sb-branch-label">
-          <GitBranch size={13} className="mp-sb-branch-ico" />
-          <span>الفرع النشط</span>
-          <span className="mp-sb-branch-badge">
-            {isMainBranch ? 'رئيسي' : 'فرع'}
+      <div
+        className={`mp-sb-store-card ${compact ? 'is-compact' : ''}`}
+        role={canSwitchBranches ? 'button' : undefined}
+        tabIndex={canSwitchBranches ? 0 : undefined}
+        onClick={canSwitchBranches ? triggerSwitch : undefined}
+        onKeyDown={
+          canSwitchBranches
+            ? (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  triggerSwitch();
+                }
+              }
+            : undefined
+        }
+        style={canSwitchBranches ? { cursor: 'pointer' } : undefined}
+        title={canSwitchBranches ? 'اضغط لتبديل الفرع' : activeBranchDisplayName}
+      >
+        <div className="mp-sb-store-row">
+          <Store size={14} className="mp-sb-store-ico" />
+          <span className="mp-sb-store-name" title={activeBranchDisplayName}>
+            {activeBranchDisplayName}
           </span>
+          {canSwitchBranches && (
+            <ChevronDown
+              size={14}
+              style={{
+                marginInlineStart: 'auto',
+                flexShrink: 0,
+                color: 'var(--brand-ink, var(--brand))',
+              }}
+            />
+          )}
         </div>
-        <button
-          type="button"
-          className="mp-sb-branch-trigger"
-          onClick={() => {
-            setDrawerOpen(false);
-            openBranchSwitcherModal();
-          }}
-        >
-          <span className="mp-sb-branch-trigger-name" title={activeBranchTitle}>
-            {activeBranchTitle}
-          </span>
-          <span className="mp-sb-branch-trigger-action">
-            <span>تبديل</span>
-            <ChevronDown size={13} />
-          </span>
-        </button>
+        <div className="mp-sb-store-plan">{localizedPlanTitle}</div>
       </div>
     );
   };
@@ -302,8 +303,7 @@ const DashboardShell: React.FC = () => {
 
             <div style={{ padding: '12px 10px 18px', overflowY: 'auto', flex: 1 }}>
               <div className="mp-sb-header-stack">
-                {renderStoreSummaryCard(true)}
-                {renderBranchSwitcher('drawer')}
+                {renderStoreSummaryCard(true, true)}
               </div>
 
               <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -361,7 +361,6 @@ const DashboardShell: React.FC = () => {
 
           <div className="mp-sb-header-stack" style={{ marginTop: '10px' }}>
             {renderStoreSummaryCard()}
-            {renderBranchSwitcher('desktop')}
           </div>
         </div>
 

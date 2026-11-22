@@ -1,4 +1,4 @@
-const CACHE_NAME = 'menuplus-shell-v4';
+const CACHE_NAME = 'menuplus-shell-v5';
 const SHELL_ASSETS = [
   '/manifest.webmanifest',
   '/assets/aistudio/icon_f95f5a07.png',
@@ -28,7 +28,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET') return;
+  if (req.method !== 'GET' || req.mode === 'navigate') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/@')) return;

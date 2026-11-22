@@ -1271,6 +1271,7 @@ const syncChannel =
   typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('menuplus_sync') : null;
 
 function broadcastLocalDiff(put?: Record<string, unknown>, del?: string[]) {
+  loadedMenuVersionByKey.clear();
   if (!syncChannel) return;
   try {
     syncChannel.postMessage({ type: 'diff', put, del });
@@ -2257,6 +2258,7 @@ export async function syncFromServer(force = false): Promise<boolean> {
 }
 
 const inFlightMenuFetch = new Map<string, Promise<{ ok: boolean; rid?: string; slug?: string }>>();
+const loadedMenuVersionByKey = new Map<string, number>();
 
 export async function fetchPublicMenuFast(
   slugOrId: string,
@@ -2277,10 +2279,11 @@ export async function fetchPublicMenuFast(
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId =
       controller && typeof window !== 'undefined'
-        ? window.setTimeout(() => controller.abort(), 5000)
+        ? window.setTimeout(() => controller.abort(), 12000)
         : null;
     try {
-      const vQuery = opts?.onlyIfChanged && lastStoreVersion > 0 ? `?v=${lastStoreVersion}` : '';
+      const knownMenuVer = loadedMenuVersionByKey.get(cacheKey) || 0;
+      const vQuery = opts?.onlyIfChanged && knownMenuVer > 0 ? `?v=${knownMenuVer}` : '';
       const res = await fetch(`/api/public/menu/${encodeURIComponent(clean)}${vQuery}`, {
         cache: 'no-store',
         credentials: 'include',
@@ -2295,10 +2298,47 @@ export async function fetchPublicMenuFast(
         ok?: boolean;
         unchanged?: boolean;
         version?: number;
+        buildId?: string;
         rid?: string;
         slug?: string;
         records?: StoreData;
       };
+      const serverBuildId = String(data.buildId || res.headers.get('X-App-Build') || '').trim();
+      const clientBuildId =
+        typeof window !== 'undefined'
+          ? String((window as { __MENUPLUS_BUILD__?: string }).__MENUPLUS_BUILD__ || '').trim()
+          : '';
+      if (
+        typeof window !== 'undefined' &&
+        serverBuildId &&
+        clientBuildId &&
+        serverBuildId !== clientBuildId
+      ) {
+        try {
+          const reloadKey = `menuplus_build_reload_${serverBuildId}`;
+          if (!window.sessionStorage.getItem(reloadKey)) {
+            window.sessionStorage.setItem(reloadKey, '1');
+            if ('serviceWorker' in navigator) {
+              await navigator.serviceWorker
+                .getRegistrations()
+                .then((regs) => Promise.all(regs.map((r) => r.unregister().catch(() => false))))
+                .catch(() => {});
+            }
+            if (typeof caches !== 'undefined') {
+              await caches
+                .keys()
+                .then((keys) => Promise.all(keys.map((k) => caches.delete(k).catch(() => false))))
+                .catch(() => {});
+            }
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set('_v', serverBuildId);
+            window.location.replace(nextUrl.toString());
+            return { ok: true, rid: data.rid, slug: data.slug };
+          }
+        } catch {
+          // ignore WebView storage/navigation errors
+        }
+      }
       if (data.version && data.version > 0) {
         lastStoreVersion = data.version;
       }
@@ -2310,6 +2350,11 @@ export async function fetchPublicMenuFast(
         mergeRemoteRecordsIntoStore(data.records, fetchStartedAt);
         ensureDemoRestaurant();
         applyScopedTheme();
+        if (data.version && data.version > 0) {
+          loadedMenuVersionByKey.set(cacheKey, data.version);
+          if (data.rid) loadedMenuVersionByKey.set(String(data.rid).toLowerCase(), data.version);
+          if (data.slug) loadedMenuVersionByKey.set(String(data.slug).toLowerCase(), data.version);
+        }
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('menuplus_db_updated'));
         }

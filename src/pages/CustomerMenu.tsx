@@ -4,6 +4,7 @@
  */
 
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   AlertTriangle,
@@ -342,7 +343,11 @@ const PublicMenuContent: React.FC<PublicMenuContentProps> = ({
   }, [restaurantId]);
 
   const rawRest = getItem<Restaurant>(`restaurants/${restaurantId}`);
-  const rest = rawRest ? ensureRestaurantDefaults(rawRest) : undefined;
+  const normalizedRawRest =
+    rawRest && rawRest.isBranch && rawRest.branchName?.trim()
+      ? { ...rawRest, n: rawRest.branchName.trim() }
+      : rawRest;
+  const rest = normalizedRawRest ? ensureRestaurantDefaults(normalizedRawRest) : undefined;
   const resolvedPlan = resolveRestaurantPlan(rest, getPlans());
   const terms = getBusinessTerms(rest?.projectType);
   const ORDER_TYPE_META: Record<OrderType, { label: string; icon: React.ReactNode }> = {
@@ -6472,11 +6477,14 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
       if (active) setSyncTick((prev) => prev + 1);
     };
     window.addEventListener('menuplus_db_updated', handleDbUpdated);
+    void fetchPublicMenuFast(restaurantId, { onlyIfChanged: true }).then((res) => {
+      if (res.ok && active) setSyncTick((prev) => prev + 1);
+    });
     return () => {
       active = false;
       window.removeEventListener('menuplus_db_updated', handleDbUpdated);
     };
-  }, []);
+  }, [restaurantId]);
 
   const entryRest = getItem<Restaurant>(`restaurants/${restaurantId}`);
   const rootRid =
@@ -6566,165 +6574,171 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
         onOpenBranchPicker={() => setBranchPickerOpen(true)}
       />
 
-      {hasMultipleBranches && branchPickerOpen && (
-        <div
-          onClick={handleDismissBranchPicker}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 99999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px',
-            background: 'rgba(2, 6, 23, 0.78)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-          }}
-        >
-          <motion.div
-            {...dashModalMotion(prefersReducedMotion)}
-            dir="rtl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="mandatory-branch-picker-title"
-            onClick={(e) => e.stopPropagation()}
+      {hasMultipleBranches && branchPickerOpen && typeof document !== 'undefined' &&
+        createPortal(
+          <div
+            onClick={handleDismissBranchPicker}
             style={{
-              width: '100%',
-              maxWidth: '410px',
-              borderRadius: '26px',
-              padding: '22px',
-              background: modalCard,
-              color: modalInk,
-              border: `1px solid ${modalLine}`,
-              boxShadow: '0 28px 70px rgba(0, 0, 0, 0.5)',
+              position: 'fixed',
+              top: 0,
+              right: 0,
+              bottom: 0,
+              left: 0,
+              inset: 0,
+              zIndex: 2147483000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px',
+              background: 'rgba(2, 6, 23, 0.78)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
             }}
           >
-            <div
+            <motion.div
+              {...dashModalMotion(prefersReducedMotion)}
+              dir="rtl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mandatory-branch-picker-title"
+              onClick={(e) => e.stopPropagation()}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '10px',
-                marginBottom: '16px',
+                width: '100%',
+                maxWidth: '410px',
+                borderRadius: '26px',
+                padding: '22px',
+                background: modalCard,
+                color: modalInk,
+                border: `1px solid ${modalLine}`,
+                boxShadow: '0 28px 70px rgba(0, 0, 0, 0.5)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '12px',
-                    background: `color-mix(in srgb, ${modalBrand} 18%, ${modalBg})`,
-                    color: modalBrand,
-                    display: 'grid',
-                    placeItems: 'center',
-                    flexShrink: 0,
-                  }}
-                >
-                  <GitBranch size={20} />
-                </div>
-                <h3
-                  id="mandatory-branch-picker-title"
-                  style={{ margin: 0, fontSize: '21px', fontWeight: 900, color: modalInk }}
-                >
-                  اختر فرع
-                </h3>
-              </div>
-
-              {hasChosenBranch && (
-                <button
-                  type="button"
-                  onClick={handleDismissBranchPicker}
-                  aria-label="إغلاق"
-                  style={{
-                    width: '34px',
-                    height: '34px',
-                    borderRadius: '50%',
-                    border: `1px solid ${modalLine}`,
-                    background: modalBg,
-                    color: modalMuted,
-                    display: 'grid',
-                    placeItems: 'center',
-                    cursor: 'pointer',
-                    flexShrink: 0,
-                  }}
-                >
-                  <X size={16} />
-                </button>
-              )}
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '10px',
-                maxHeight: '62vh',
-                overflowY: 'auto',
-              }}
-            >
-              {allFamilyBranches.map((branch) => {
-                const isSelected = hasChosenBranch && branch.id === effectiveRestaurantId;
-                const branchTitle = (branch.branchName || '').trim() || branch.n;
-                const branchOpen = isRestaurantOpenNow(branch);
-                return (
-                  <button
-                    key={branch.id}
-                    type="button"
-                    onClick={() => handleChooseBranch(branch.id)}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '10px',
+                  marginBottom: '16px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div
                     style={{
-                      width: '100%',
-                      textAlign: 'start',
-                      padding: '16px 18px',
-                      borderRadius: '18px',
-                      border: isSelected ? `2px solid ${modalBrand}` : `1px solid ${modalLine}`,
-                      background: isSelected
-                        ? `color-mix(in srgb, ${modalBrand} 12%, ${modalBg})`
-                        : modalBg,
-                      color: modalInk,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      gap: '12px',
-                      transition: 'transform 0.14s ease, border-color 0.14s ease',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '12px',
+                      background: `color-mix(in srgb, ${modalBrand} 18%, ${modalBg})`,
+                      color: modalBrand,
+                      display: 'grid',
+                      placeItems: 'center',
+                      flexShrink: 0,
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: '18px',
-                        fontWeight: 900,
-                        lineHeight: 1.35,
-                        color: modalInk,
-                        minWidth: 0,
-                        flex: 1,
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {branchTitle}
-                    </span>
+                    <GitBranch size={20} />
+                  </div>
+                  <h3
+                    id="mandatory-branch-picker-title"
+                    style={{ margin: 0, fontSize: '21px', fontWeight: 900, color: modalInk }}
+                  >
+                    اختر فرع
+                  </h3>
+                </div>
 
-                    <span
+                {hasChosenBranch && (
+                  <button
+                    type="button"
+                    onClick={handleDismissBranchPicker}
+                    aria-label="إغلاق"
+                    style={{
+                      width: '34px',
+                      height: '34px',
+                      borderRadius: '50%',
+                      border: `1px solid ${modalLine}`,
+                      background: modalBg,
+                      color: modalMuted,
+                      display: 'grid',
+                      placeItems: 'center',
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  maxHeight: '62vh',
+                  overflowY: 'auto',
+                }}
+              >
+                {allFamilyBranches.map((branch) => {
+                  const isSelected = hasChosenBranch && branch.id === effectiveRestaurantId;
+                  const branchTitle = (branch.branchName || '').trim() || branch.n;
+                  const branchOpen = isRestaurantOpenNow(branch);
+                  return (
+                    <button
+                      key={branch.id}
+                      type="button"
+                      onClick={() => handleChooseBranch(branch.id)}
                       style={{
-                        fontSize: '12px',
-                        fontWeight: 800,
-                        padding: '5px 12px',
-                        borderRadius: '10px',
-                        flexShrink: 0,
-                        background: branchOpen ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)',
-                        color: branchOpen ? '#10b981' : '#ef4444',
+                        width: '100%',
+                        textAlign: 'start',
+                        padding: '16px 18px',
+                        borderRadius: '18px',
+                        border: isSelected ? `2px solid ${modalBrand}` : `1px solid ${modalLine}`,
+                        background: isSelected
+                          ? `color-mix(in srgb, ${modalBrand} 12%, ${modalBg})`
+                          : modalBg,
+                        color: modalInk,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '12px',
+                        transition: 'transform 0.14s ease, border-color 0.14s ease',
                       }}
                     >
-                      {branchOpen ? 'مفتوح' : 'مغلق'}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </motion.div>
-        </div>
-      )}
+                      <span
+                        style={{
+                          fontSize: '18px',
+                          fontWeight: 900,
+                          lineHeight: 1.35,
+                          color: modalInk,
+                          minWidth: 0,
+                          flex: 1,
+                          wordBreak: 'break-word',
+                        }}
+                      >
+                        {branchTitle}
+                      </span>
+
+                      <span
+                        style={{
+                          fontSize: '12px',
+                          fontWeight: 800,
+                          padding: '5px 12px',
+                          borderRadius: '10px',
+                          flexShrink: 0,
+                          background: branchOpen ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)',
+                          color: branchOpen ? '#10b981' : '#ef4444',
+                        }}
+                      >
+                        {branchOpen ? 'مفتوح' : 'مغلق'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>,
+          document.body
+        )}
     </>
   );
 };

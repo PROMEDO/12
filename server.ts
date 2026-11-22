@@ -106,6 +106,7 @@ const BASE_DOMAIN = String(process.env.BASE_DOMAIN || 'menuplus.io')
   .replace(/\/.*$/, '') || 'menuplus.io';
 
 app.set('trust proxy', true);
+app.set('etag', false);
 app.disable('x-powered-by');
 app.use((req, _res, next) => {
   if (req.url.startsWith('//')) {
@@ -940,9 +941,11 @@ app.get('/api/public/menu/:slugOrId', async (req, res) => {
       }
     }
 
+    res.setHeader('X-App-Build', SERVER_BUILD_ID);
     return res.json({
       ok: true,
       version: currentVersion,
+      buildId: SERVER_BUILD_ID,
       rid,
       mainRid,
       slug: sanitizeSubdomainValue(String(rest.slug || rest.subdomain || '')) || (rid === 'demo' ? 'cap-burger' : ''),
@@ -2621,7 +2624,10 @@ async function injectSeoMetaIntoHtml(html: string, req: Request): Promise<string
         }
       }
       if (matchedRest) {
-        const restName = String(matchedRest.n || 'المنيو الإلكتروني');
+        const restName =
+          matchedRest.isBranch && String(matchedRest.branchName || '').trim()
+            ? String(matchedRest.branchName).trim()
+            : String(matchedRest.n || 'المنيو الإلكتروني');
         const rawTagline = String(matchedRest.tagline || '').trim();
         const isMatchedStore = String(matchedRest.projectType || '').toLowerCase().trim() === 'store';
         const cleanTagline =
@@ -3447,14 +3453,41 @@ async function runStartupMigrations() {
   }
 }
 
+const DEV_BOOT_BUILD_ID = Date.now().toString(36);
+let cachedProdBuildId = '';
+
+function resolveServerBuildId(indexHtmlContent?: string): string {
+  if (!isProduction) return DEV_BOOT_BUILD_ID;
+  if (cachedProdBuildId) return cachedProdBuildId;
+  if (indexHtmlContent) {
+    const hash = crypto.createHash('sha1').update(indexHtmlContent).digest('hex').slice(0, 12);
+    cachedProdBuildId = hash;
+    return hash;
+  }
+  return DEV_BOOT_BUILD_ID;
+}
+
+let SERVER_BUILD_ID = resolveServerBuildId();
+
+function injectBuildFingerprint(html: string, buildId: string): string {
+  if (!buildId) return html;
+  const tag = `<script>window.__MENUPLUS_BUILD__=${JSON.stringify(buildId)};</script>`;
+  if (html.includes('</head>')) {
+    return html.replace('</head>', () => `  ${tag}\n  </head>`);
+  }
+  return `${tag}${html}`;
+}
+
 async function startServer() {
   await runStartupMigrations().catch((err) => {
     console.warn('[Startup Migration] Failed:', err);
   });
   const setNoStoreHtmlHeaders = (res: Response) => {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.removeHeader('ETag');
+    res.setHeader('Cache-Control', 'private, no-store, no-cache, must-revalidate, max-age=0');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
+    res.setHeader('Vary', 'User-Agent, Accept-Encoding');
     res.setHeader('CDN-Cache-Control', 'no-store');
     res.setHeader('Cloudflare-CDN-Cache-Control', 'no-store');
     res.setHeader('Surrogate-Control', 'no-store');
@@ -3523,11 +3556,12 @@ async function startServer() {
       setNoStoreHtmlHeaders(res);
       try {
         const subdomainResolved = res.locals.subdomainResolved as ResolvedSubdomainResult | undefined;
+        SERVER_BUILD_ID = resolveServerBuildId(rawHtml);
         if (subdomainResolved?.found) {
-          const injected = injectSubdomainHtmlMeta(rawHtml, subdomainResolved);
+          const injected = injectBuildFingerprint(injectSubdomainHtmlMeta(rawHtml, subdomainResolved), SERVER_BUILD_ID);
           return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(injected);
         }
-        const seoInjected = await injectSeoMetaIntoHtml(rawHtml, req);
+        const seoInjected = injectBuildFingerprint(await injectSeoMetaIntoHtml(rawHtml, req), SERVER_BUILD_ID);
         return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(seoInjected);
       } catch (err) {
         return next(err);
@@ -3554,10 +3588,10 @@ async function startServer() {
         const transformed = await vite.transformIndexHtml(req.originalUrl, rawTemplate);
         const subdomainResolved = res.locals.subdomainResolved as ResolvedSubdomainResult | undefined;
         if (subdomainResolved?.found) {
-          const injected = injectSubdomainHtmlMeta(transformed, subdomainResolved);
+          const injected = injectBuildFingerprint(injectSubdomainHtmlMeta(transformed, subdomainResolved), SERVER_BUILD_ID);
           return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(injected);
         }
-        const seoInjected = await injectSeoMetaIntoHtml(transformed, req);
+        const seoInjected = injectBuildFingerprint(await injectSeoMetaIntoHtml(transformed, req), SERVER_BUILD_ID);
         return res.status(200).setHeader('Content-Type', 'text/html; charset=utf-8').send(seoInjected);
       } catch (err) {
         return next(err);

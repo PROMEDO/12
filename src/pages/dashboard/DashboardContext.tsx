@@ -833,7 +833,7 @@ function useDashboardController({
       parentRid: mainRid,
       isBranch: true,
       branchName: cleanName,
-      n: `${mainRest.n} — ${cleanName}`,
+      n: cleanName,
       ph: branchPhoneRaw.trim() || mainRest.ph,
       address: branchAddressRaw.trim() || mainRest.address,
       slug: validBranchSlug,
@@ -917,7 +917,7 @@ function useDashboardController({
     if (!target) return false;
     const isSubBranch = Boolean(target.isBranch || target.parentRid);
     const updated: Restaurant = isSubBranch
-      ? { ...target, branchName: cleanName, n: `${mainRest.n} — ${cleanName}` }
+      ? { ...target, branchName: cleanName, n: cleanName }
       : { ...target, n: cleanName };
     await putItemAndSync<Restaurant>(`restaurants/${branchRid}`, updated);
     onRefresh();
