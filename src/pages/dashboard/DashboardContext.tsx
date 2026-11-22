@@ -1029,10 +1029,12 @@ function useDashboardController({
       logoHash = `${(h >>> 0).toString(16)}_${effectivePwaLogo.length}`;
     }
 
+    const pwaDisplayName =
+      rid !== mainRid ? rest.branchName?.trim() || rest.n : rest.branchName?.trim() || rest.n;
     const params = new URLSearchParams();
     params.set('rid', rid);
     if (effectivePwaSlug) params.set('slug', effectivePwaSlug);
-    if (rest.n) params.set('name', rest.n);
+    if (pwaDisplayName) params.set('name', pwaDisplayName);
     if (rid !== mainRid) params.set('branchId', rid);
     if (effectivePwaLogo) params.set('v', logoHash);
 
@@ -1073,11 +1075,14 @@ function useDashboardController({
     });
 
     const appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]');
-    const shortTitle = rest.n && rest.n.trim().length <= 14 ? rest.n.trim() : 'لوحة التحكم';
+    const shortTitle =
+      pwaDisplayName && pwaDisplayName.trim().length <= 14
+        ? pwaDisplayName.trim()
+        : 'لوحة التحكم';
     if (appleTitle) {
       appleTitle.setAttribute('content', shortTitle);
     }
-  }, [rid, mainRid, rest.n, effectivePwaLogo, effectivePwaSlug]);
+  }, [rid, mainRid, rest.n, rest.branchName, effectivePwaLogo, effectivePwaSlug]);
 
   // CATEGORIES STATE
   const [searchCatQuery, setSearchCatQuery] = useState('');

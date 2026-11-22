@@ -139,9 +139,14 @@ const DashboardShell: React.FC = () => {
     : terms.isStore
     ? 'لوحة تحكم المتجر'
     : 'لوحة التحكم';
+  const activeBranchDisplayName =
+    activeRid === mainRid
+      ? mainRest.branchName?.trim() || mainRest.n
+      : rest.branchName?.trim() || rest.n;
+
   useEffect(() => {
-    document.title = `${activeTabTitle} | ${rest.n || 'منيو بلس'}`;
-  }, [activeTabTitle, rest.n]);
+    document.title = `${activeTabTitle} | ${activeBranchDisplayName || 'منيو بلس'}`;
+  }, [activeTabTitle, activeBranchDisplayName]);
 
   const localizedPlanTitle = resolvedPlan.plan.n;
   const lockedTooltip = 'متاح في الباقات الأعلى';
@@ -156,8 +161,8 @@ const DashboardShell: React.FC = () => {
     <div className={`mp-sb-store-card ${compact ? 'is-compact' : ''}`}>
       <div className="mp-sb-store-row">
         <Store size={14} className="mp-sb-store-ico" />
-        <span className="mp-sb-store-name" title={rest.n}>
-          {rest.n}
+        <span className="mp-sb-store-name" title={activeBranchDisplayName}>
+          {activeBranchDisplayName}
         </span>
       </div>
       <div className="mp-sb-store-plan">{localizedPlanTitle}</div>
@@ -165,17 +170,15 @@ const DashboardShell: React.FC = () => {
   );
 
   const renderBranchSwitcher = (_scope: 'desktop' | 'drawer') => {
-    if (branchesList.length === 0 && ownedMenus.length <= 1) return null;
+    if (branchesList.length === 0) return null;
     const isMainBranch = activeRid === mainRid;
-    const activeBranchTitle = isMainBranch
-      ? `${mainRest.n} (الرئيسي)`
-      : rest.branchName || rest.n;
+    const activeBranchTitle = activeBranchDisplayName;
 
     return (
       <div className="mp-sb-branch-card">
         <div className="mp-sb-branch-label">
           <GitBranch size={13} className="mp-sb-branch-ico" />
-          <span>{ownedMenus.length > 1 && branchesList.length === 0 ? 'المنيو النشط' : 'الفرع / المنيو النشط'}</span>
+          <span>الفرع النشط</span>
           <span className="mp-sb-branch-badge">
             {isMainBranch ? 'رئيسي' : 'فرع'}
           </span>
@@ -500,7 +503,7 @@ const DashboardShell: React.FC = () => {
       />
 
       <BranchSwitcherModal
-        isOpen={branchModalOpen && (branchesList.length > 0 || ownedMenus.length > 1)}
+        isOpen={branchModalOpen && branchesList.length > 0}
         isStartupPrompt={branchModalIsStartup}
         mainRid={mainRid}
         activeRid={activeRid}

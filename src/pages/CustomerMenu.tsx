@@ -6460,9 +6460,11 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
   onNavigate,
   showToast,
 }) => {
+  const prefersReducedMotion = Boolean(useReducedMotion());
   const [syncTick, setSyncTick] = useState(0);
   const [branchPickerOpen, setBranchPickerOpen] = useState(false);
-  const autoPromptedRootRef = React.useRef<string | null>(null);
+  const [hasChosenBranch, setHasChosenBranch] = useState(false);
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(restaurantId);
 
   useEffect(() => {
     let active = true;
@@ -6495,70 +6497,30 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
     .map((b) => ensureRestaurantDefaults(b));
 
   const hasMultipleBranches = allFamilyBranches.length >= 2;
-  const prefKey = `menuplus_selected_branch_${rootRid}`;
-  const BRANCH_SELECTION_TTL_MS = 12 * 60 * 60 * 1000;
-  const isDirectSubBranchEntry = Boolean(entryRest?.isBranch && entryRest.id !== rootRid);
-
-  const readSavedBranchId = (): string | null => {
-    try {
-      const raw = window.localStorage.getItem(prefKey);
-      if (!raw) return null;
-      if (raw.startsWith('{')) {
-        const parsed = JSON.parse(raw) as { branchId?: string; selectedAt?: number; expiresAt?: number };
-        const bid = typeof parsed?.branchId === 'string' ? parsed.branchId : '';
-        const exp =
-          typeof parsed?.expiresAt === 'number'
-            ? parsed.expiresAt
-            : typeof parsed?.selectedAt === 'number'
-            ? parsed.selectedAt + BRANCH_SELECTION_TTL_MS
-            : 0;
-        if (!bid || !exp || Date.now() >= exp) {
-          window.localStorage.removeItem(prefKey);
-          return null;
-        }
-        return allFamilyBranches.some((b) => b.id === bid) ? bid : null;
-      }
-      // Legacy plain ID without timestamp: clear so a fresh 12-hour choice runs
-      window.localStorage.removeItem(prefKey);
-      return null;
-    } catch {
-      return null;
-    }
-  };
-
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
-    if (isFamilyOwner && isDirectSubBranchEntry) return restaurantId;
-    return readSavedBranchId() || restaurantId;
-  });
 
   useEffect(() => {
-    if (isFamilyOwner && isDirectSubBranchEntry) {
-      setSelectedBranchId(restaurantId);
-      return;
-    }
-    const saved = readSavedBranchId();
-    setSelectedBranchId(saved || restaurantId);
-  }, [restaurantId, rootRid, isFamilyOwner, isDirectSubBranchEntry]);
+    setSelectedBranchId(restaurantId);
+    setHasChosenBranch(false);
+  }, [restaurantId, rootRid]);
 
   useEffect(() => {
     if (!hasMultipleBranches) {
       setBranchPickerOpen(false);
       return;
     }
-    if (isFamilyOwner && isDirectSubBranchEntry) {
-      return;
-    }
-    const saved = readSavedBranchId();
-    if (saved) {
-      setSelectedBranchId(saved);
-      setBranchPickerOpen(false);
-      return;
-    }
-    if (autoPromptedRootRef.current !== rootRid) {
-      autoPromptedRootRef.current = rootRid;
+    if (!hasChosenBranch) {
       setBranchPickerOpen(true);
     }
-  }, [hasMultipleBranches, rootRid, syncTick, isFamilyOwner, isDirectSubBranchEntry]);
+  }, [hasMultipleBranches, hasChosenBranch, rootRid, syncTick]);
+
+  useEffect(() => {
+    if (!hasMultipleBranches || !branchPickerOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [hasMultipleBranches, branchPickerOpen]);
 
   const effectiveRestaurantId =
     hasMultipleBranches && allFamilyBranches.some((b) => b.id === selectedBranchId)
@@ -6568,10 +6530,8 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
   const activeBranchObj =
     allFamilyBranches.find((b) => b.id === effectiveRestaurantId) || allFamilyBranches[0];
   const branchShortLabel = !activeBranchObj
-    ? 'اختر الفرع'
-    : activeBranchObj.id === rootRid
-    ? 'الفرع الرئيسي'
-    : activeBranchObj.branchName || activeBranchObj.n;
+    ? 'اختر فرع'
+    : (activeBranchObj.branchName || '').trim() || activeBranchObj.n;
 
   const activeTheme = getMenuThemeById(activeBranchObj?.themePreset, activeBranchObj?.themeMode);
   const activeMode = activeTheme.mode;
@@ -6581,27 +6541,15 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
   const modalMuted = activeMode === 'light' ? '#64748b' : '#94a3b8';
   const modalLine = activeMode === 'light' ? 'rgba(15, 23, 42, 0.12)' : 'rgba(255, 255, 255, 0.12)';
   const modalBrand = activeBranchObj?.color || activeTheme.brand;
-  const modalBrandInk = getContrastInk(modalBrand);
 
   const handleChooseBranch = (branchId: string) => {
-    const now = Date.now();
-    try {
-      window.localStorage.setItem(
-        prefKey,
-        JSON.stringify({
-          branchId,
-          selectedAt: now,
-          expiresAt: now + BRANCH_SELECTION_TTL_MS,
-        })
-      );
-    } catch {
-      // ignore storage errors
-    }
     setSelectedBranchId(branchId);
+    setHasChosenBranch(true);
     setBranchPickerOpen(false);
   };
 
   const handleDismissBranchPicker = () => {
+    if (!hasChosenBranch) return;
     setBranchPickerOpen(false);
   };
 
@@ -6620,31 +6568,53 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
 
       {hasMultipleBranches && branchPickerOpen && (
         <div
-          className="pm-modal-backdrop"
-          style={{ zIndex: 99999 }}
           onClick={handleDismissBranchPicker}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            background: 'rgba(2, 6, 23, 0.78)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+          }}
         >
-          <div
-            className="pm-sheet"
+          <motion.div
+            {...dashModalMotion(prefersReducedMotion)}
             dir="rtl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mandatory-branch-picker-title"
             onClick={(e) => e.stopPropagation()}
             style={{
-              borderRadius: '24px',
-              maxWidth: '430px',
-              padding: '20px',
+              width: '100%',
+              maxWidth: '410px',
+              borderRadius: '26px',
+              padding: '22px',
               background: modalCard,
               color: modalInk,
               border: `1px solid ${modalLine}`,
-              boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
+              boxShadow: '0 28px 70px rgba(0, 0, 0, 0.5)',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', marginBottom: '6px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                marginBottom: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div
                   style={{
-                    width: '36px',
-                    height: '36px',
-                    borderRadius: '11px',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
                     background: `color-mix(in srgb, ${modalBrand} 18%, ${modalBg})`,
                     color: modalBrand,
                     display: 'grid',
@@ -6652,45 +6622,51 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
                     flexShrink: 0,
                   }}
                 >
-                  <GitBranch size={18} />
+                  <GitBranch size={20} />
                 </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 900, color: modalInk }}>
-                    اختر الفرع
-                  </h3>
-                  <p style={{ margin: 0, fontSize: '12px', color: modalMuted }}>
-                    الفرع الحالي: {branchShortLabel} · اختر الفرع لعرض المنيو الخاص به، ويمكنك تبديله لاحقاً من الأعلى
-                  </p>
-                </div>
+                <h3
+                  id="mandatory-branch-picker-title"
+                  style={{ margin: 0, fontSize: '21px', fontWeight: 900, color: modalInk }}
+                >
+                  اختر فرع
+                </h3>
               </div>
-              <button
-                type="button"
-                onClick={handleDismissBranchPicker}
-                aria-label="إغلاق"
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  border: `1px solid ${modalLine}`,
-                  background: modalBg,
-                  color: modalMuted,
-                  display: 'grid',
-                  placeItems: 'center',
-                  cursor: 'pointer',
-                  flexShrink: 0,
-                }}
-              >
-                <X size={15} />
-              </button>
+
+              {hasChosenBranch && (
+                <button
+                  type="button"
+                  onClick={handleDismissBranchPicker}
+                  aria-label="إغلاق"
+                  style={{
+                    width: '34px',
+                    height: '34px',
+                    borderRadius: '50%',
+                    border: `1px solid ${modalLine}`,
+                    background: modalBg,
+                    color: modalMuted,
+                    display: 'grid',
+                    placeItems: 'center',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={16} />
+                </button>
+              )}
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '9px', marginTop: '14px', maxHeight: '60vh', overflowY: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px',
+                maxHeight: '62vh',
+                overflowY: 'auto',
+              }}
+            >
               {allFamilyBranches.map((branch) => {
-                const isMain = branch.id === rootRid;
-                const isSelected = branch.id === effectiveRestaurantId;
-                const branchTitle = isMain
-                  ? `${branch.n} (الفرع الرئيسي)`
-                  : branch.branchName || branch.n;
+                const isSelected = hasChosenBranch && branch.id === effectiveRestaurantId;
+                const branchTitle = (branch.branchName || '').trim() || branch.n;
                 const branchOpen = isRestaurantOpenNow(branch);
                 return (
                   <button
@@ -6700,8 +6676,8 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
                     style={{
                       width: '100%',
                       textAlign: 'start',
-                      padding: '13px 14px',
-                      borderRadius: '15px',
+                      padding: '16px 18px',
+                      borderRadius: '18px',
                       border: isSelected ? `2px solid ${modalBrand}` : `1px solid ${modalLine}`,
                       background: isSelected
                         ? `color-mix(in srgb, ${modalBrand} 12%, ${modalBg})`
@@ -6711,58 +6687,42 @@ export const PublicMenuView: React.FC<PublicMenuViewProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '10px',
+                      gap: '12px',
                       transition: 'transform 0.14s ease, border-color 0.14s ease',
                     }}
                   >
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                        <b style={{ fontSize: '14px', color: modalInk }}>{branchTitle}</b>
-                        <span
-                          style={{
-                            fontSize: '10.5px',
-                            fontWeight: 800,
-                            padding: '2px 7px',
-                            borderRadius: '8px',
-                            background: branchOpen ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)',
-                            color: branchOpen ? '#10b981' : '#ef4444',
-                          }}
-                        >
-                          {branchOpen ? 'مفتوح' : 'مغلق'}
-                        </span>
-                      </div>
-                      {(branch.address || branch.ph) && (
-                        <div style={{ fontSize: '11.5px', color: modalMuted, marginTop: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {branch.address ? `📍 ${branch.address}` : ''}
-                          {branch.address && branch.ph ? ' • ' : ''}
-                          {branch.ph ? `📞 ${branch.ph}` : ''}
-                        </div>
-                      )}
-                    </div>
+                    <span
+                      style={{
+                        fontSize: '18px',
+                        fontWeight: 900,
+                        lineHeight: 1.35,
+                        color: modalInk,
+                        minWidth: 0,
+                        flex: 1,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {branchTitle}
+                    </span>
 
-                    {isSelected ? (
-                      <span
-                        style={{
-                          width: '24px',
-                          height: '24px',
-                          borderRadius: '50%',
-                          background: modalBrand,
-                          color: modalBrandInk,
-                          display: 'grid',
-                          placeItems: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <Check size={13} strokeWidth={3} />
-                      </span>
-                    ) : (
-                      <ChevronLeft size={16} style={{ color: modalMuted, flexShrink: 0 }} />
-                    )}
+                    <span
+                      style={{
+                        fontSize: '12px',
+                        fontWeight: 800,
+                        padding: '5px 12px',
+                        borderRadius: '10px',
+                        flexShrink: 0,
+                        background: branchOpen ? 'rgba(16, 185, 129, 0.16)' : 'rgba(239, 68, 68, 0.16)',
+                        color: branchOpen ? '#10b981' : '#ef4444',
+                      }}
+                    >
+                      {branchOpen ? 'مفتوح' : 'مغلق'}
+                    </span>
                   </button>
                 );
               })}
             </div>
-          </div>
+          </motion.div>
         </div>
       )}
     </>

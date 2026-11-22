@@ -227,6 +227,10 @@ export const HomePage: React.FC = () => {
   const allTipsCompleted = completedTipsCount >= dynamicTips.length;
 
   const activePlanName = resolvedPlan.plan.n;
+  const activeBranchDisplayName =
+    activeRid !== mainRid
+      ? rest.branchName?.trim() || rest.n
+      : rest.branchName?.trim() || rest.n;
 
   return (
     <div className="mp-home-wrap">
@@ -237,7 +241,7 @@ export const HomePage: React.FC = () => {
       >
         <img
           src={rest.logo}
-          alt={rest.n}
+          alt={activeBranchDisplayName}
           referrerPolicy="no-referrer"
           style={{
             width: '56px',
@@ -249,13 +253,8 @@ export const HomePage: React.FC = () => {
           }}
         />
         <div style={{ minWidth: 0 }}>
-          {activeRid !== mainRid && (
-            <div style={{ fontSize: '12px', color: 'var(--brand-ink, #34D399)', fontWeight: 800, marginBottom: '2px' }}>
-              {`إدارة فرع: ${rest.branchName || rest.n}`}
-            </div>
-          )}
           <h1 style={{ margin: '0 0 4px', fontSize: 'clamp(19px, 3vw, 24px)', fontWeight: 900, color: 'var(--ink)' }}>
-            {rest.n}
+            {activeBranchDisplayName}
           </h1>
           <div className="mp-home-welcome-meta">
             <span>
@@ -337,7 +336,7 @@ export const HomePage: React.FC = () => {
             <ArrowUpRight size={16} className="mp-home-shortcut-arrow" />
           </motion.button>
 
-          {branchesList.length > 0 || ownedMenus.length > 1 ? (
+          {branchesList.length > 0 ? (
             <motion.button
               type="button"
               className="mp-home-shortcut-card"
@@ -349,7 +348,7 @@ export const HomePage: React.FC = () => {
               </span>
               <span className="mp-home-shortcut-body">
                 <span className="mp-home-shortcut-label">
-                  {ownedMenus.length > 1 && branchesList.length === 0 ? 'تبديل المنيو النشط' : 'تبديل الفرع / المنيو'}
+                  تبديل الفرع
                 </span>
                 <span className="mp-home-shortcut-desc">
                   الحالي: {activeRid === mainRid ? rest.n : rest.branchName || rest.n}

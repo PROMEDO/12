@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Check, ChevronLeft, Copy, GitBranch, Sparkles, Store, X } from 'lucide-react';
+import { Check, ChevronLeft, Copy, GitBranch, Sparkles, X } from 'lucide-react';
 import { Category, MenuItem, Restaurant } from '../types';
 import {
   OwnedMenuSummary,
@@ -68,7 +68,6 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
     ...branchesList.map((b) => ({ rest: b, isMain: false })),
   ];
   const familyIds = new Set(allBranches.map((entry) => entry.rest.id));
-  const otherOwnedMenus = ownedMenus.filter((m) => m.id && !familyIds.has(m.id));
 
   const handleCopyDashboardLink = async (
     e: React.MouseEvent,
@@ -362,137 +361,6 @@ export const BranchSwitcherModal: React.FC<BranchSwitcherModalProps> = ({
                   </div>
                 );
               })}
-
-              {otherOwnedMenus.length > 0 && (
-                <>
-                  <div
-                    style={{
-                      marginTop: '6px',
-                      paddingTop: '10px',
-                      borderTop: '1px solid var(--line)',
-                      fontSize: '11.5px',
-                      fontWeight: 800,
-                      color: 'var(--muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    <Store size={13} />
-                    <span>مشاريع ومنيوهات أخرى تملكها (دخول مباشر بدون تسجيل جديد)</span>
-                  </div>
-
-                  {otherOwnedMenus.map((menu) => {
-                    const isCopied = copiedId === menu.id;
-                    const menuLabel = menu.branchName ? `${menu.name} (${menu.branchName})` : menu.name;
-                    return (
-                      <div
-                        key={menu.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          if (onSelectMenu) {
-                            onSelectMenu(menu.id, menu.slug);
-                          } else {
-                            window.location.href = getDashboardTabPath('home', undefined, menu.slug);
-                          }
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            if (onSelectMenu) {
-                              onSelectMenu(menu.id, menu.slug);
-                            } else {
-                              window.location.href = getDashboardTabPath('home', undefined, menu.slug);
-                            }
-                          }
-                        }}
-                        style={{
-                          width: '100%',
-                          padding: '13px 14px',
-                          borderRadius: '15px',
-                          border: '1px solid color-mix(in srgb, var(--line) 85%, transparent)',
-                          background: 'color-mix(in srgb, var(--panel, var(--surface)) 78%, transparent)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          gap: '10px',
-                          textAlign: 'start',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '11px', minWidth: 0, flex: 1 }}>
-                          <div
-                            style={{
-                              width: '38px',
-                              height: '38px',
-                              borderRadius: '11px',
-                              background: 'color-mix(in srgb, var(--brand) 12%, transparent)',
-                              color: 'var(--brand-ink, var(--brand))',
-                              display: 'grid',
-                              placeItems: 'center',
-                              flexShrink: 0,
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {menu.logo ? (
-                              <img src={menu.logo} alt={menuLabel} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <Store size={17} />
-                            )}
-                          </div>
-                          <div style={{ minWidth: 0, flex: 1 }}>
-                            <div
-                              style={{
-                                fontSize: '14px',
-                                fontWeight: 800,
-                                color: 'var(--ink)',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {menuLabel}
-                            </div>
-                            <div className="tabular-nums" style={{ fontSize: '11.5px', color: 'var(--muted)', marginTop: '3px' }}>
-                              /{menu.slug}/dashboard/home
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                          <button
-                            type="button"
-                            onClick={(e) => void handleCopyDashboardLink(e, menu.id, menuLabel, menu.slug)}
-                            title="نسخ رابط لوحة التحكم"
-                            style={{
-                              height: '32px',
-                              padding: '0 9px',
-                              borderRadius: '9px',
-                              border: '1px solid var(--line)',
-                              background: isCopied
-                                ? 'rgba(16, 185, 129, 0.14)'
-                                : 'color-mix(in srgb, var(--surface) 82%, transparent)',
-                              color: isCopied ? '#10b981' : 'var(--muted)',
-                              fontSize: '11px',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            {isCopied ? <Check size={13} /> : <Copy size={13} />}
-                            <span>{isCopied ? 'تم' : 'رابط اللوحة'}</span>
-                          </button>
-
-                          <ChevronLeft size={16} style={{ color: 'var(--muted)' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
             </div>
           </motion.div>
         </motion.div>
